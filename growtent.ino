@@ -1,4 +1,10 @@
 // This #include statement was automatically added by the Particle IDE.
+#include "SparkFun_VEML6075.h"
+
+// This #include statement was automatically added by the Particle IDE.
+//#include <SparkFun-VEML6075.h> // might cause duplicate declration error if this ever gets linked
+
+// This #include statement was automatically added by the Particle IDE.
 #include <clickButton.h>
 
 // This #include statement was automatically added by the Particle IDE.
@@ -8,16 +14,10 @@
 #include <Adafruit_BME680.h>
 
 // This #include statement was automatically added by the Particle IDE.
-// #include "Ubidots.h"
-
-// This #include statement was automatically added by the Particle IDE.
 #include <I2cMaster.h>
 
 // This #include statement was automatically added by the Particle IDE.
 #include "stdint.h"
-
-// This #include statement was automatically added by the Particle IDE.
-// #include <SparkFunBME280.h>
 
 // This #include statement was automatically added by the Particle IDE.
 #include <SparkFunMicroOLED.h>
@@ -26,15 +26,6 @@
 /****************************************
  * Define Constants
  ****************************************/
-
-// #ifndef TOKEN
-// #define TOKEN "BBFF-kCrf1zugUVo40MJKdd6kR6uibPfbmG"  // Put here your Ubidots TOKEN
-// #endif
-#define VAR_ID "5c5b75141d8472235888d301" // Put here your data source name
-#define VAR_LABEL "temp"                  // Put here your variable api label
-#define DEVICE_LABEL "grow-tent"          // Put here your device api label
-
-#define CCS811_ADDR 0x5B //Default I2C Address
 
 #define SEALEVELPRESSURE_HPA (1013.25) // Sea level pressure for BME680
 
@@ -45,17 +36,15 @@ long fiveMinutes = 1 * 30 * 1000UL;
  * Initialize Global Objects
  ****************************************/
 
-// Ubidots ubidots(TOKEN);
 MicroOLED oled;
-//BME280 myBME280;
 Adafruit_BME680 myBME680;
-CCS811 myCCS811(CCS811_ADDR);
+VEML6075 myVEML6075;
 
 byte server[] = {192, 168, 0, 24};
 MQTT client(server, 1883, callback);
 
 /****************************************
- * Auxiliar Functions
+ * Auxiliary Functions
  ****************************************/
 class SoilSensor
 {
@@ -362,9 +351,6 @@ public:
     {
         Serial.begin(115200);
 
-        // ubidots.setMethod(TYPE_UDP);
-        // ubidots.setDebug(true);
-
         // Connect to MQTT server
         // check for connection, reconnect if needed?
         client.connect("sparkclient");
@@ -378,46 +364,11 @@ public:
         delay(1000);
         oled.clear(PAGE);
 
-        //This begins the CCS811 sensor and prints error status of .begin()
-        CCS811Core::status returnCode = myCCS811.begin();
-        if (returnCode != CCS811Core::SENSOR_SUCCESS)
-        {
-            Serial.println("Problem with CCS811");
-            printDriverError(returnCode);
-        }
-        else
-        {
-            Serial.println("CCS811 online");
-        }
-
         //Initialize BME680
         BME680Init();
 
-        // SWITCHED TO BME680
-        //Initialize BME280
-        //For I2C, enable the following and disable the SPI section
-        // myBME280.settings.commInterface = I2C_MODE;
-        // myBME280.settings.I2CAddress = 0x77;
-        // myBME280.settings.runMode = 3; //Normal mode
-        // myBME280.settings.tStandby = 0;
-        // myBME280.settings.filter = 4;
-        // myBME280.settings.tempOverSample = 5;
-        // myBME280.settings.pressOverSample = 5;
-        // myBME280.settings.humidOverSample = 5;
-
-        // BME280Init();
-
-        //Calling .begin() causes the settings to be loaded
-        // delay(10);  //Make sure sensor had enough time to turn on. BME280 requires 2ms to start up.
-        // byte id = myBME280.begin(); //Returns ID of 0x60 if successful
-        // if (id != 0x60)
-        // {
-        //   Serial.println("Problem with BME280");
-        // }
-        // else
-        // {
-        //   Serial.println("BME280 online");
-        // }
+        //Initialize
+        VEML6075Init();
     }
 
     void Update()
@@ -460,170 +411,17 @@ public:
         myBME680.setGasHeater(320, 150); // 320*C for 150 ms
     }
 
-    //   void BME280Init()
-    //   {
-    //     //***Driver settings********************************//
-    //     //commInterface can be I2C_MODE or SPI_MODE
-    //     //specify chipSelectPin using arduino pin names
-    //     //specify I2C address.  Can be 0x77(default) or 0x76
-
-    //     //For I2C, enable the following and disable the SPI section
-    //     myBME280.settings.commInterface = I2C_MODE;
-    //     myBME280.settings.I2CAddress = 0x77;
-
-    //     //For SPI enable the following and dissable the I2C section
-    //     //myBME280.settings.commInterface = SPI_MODE;
-    //     //myBME280.settings.chipSelectPin = 10;
-
-    //     //***Operation settings*****************************//
-
-    //     //renMode can be:
-    //     //  0, Sleep mode
-    //     //  1 or 2, Forced mode
-    //     //  3, Normal mode
-    //     myBME280.settings.runMode = 3; //Normal mode
-
-    //     //tStandby can be:
-    //     //  0, 0.5ms
-    //     //  1, 62.5ms
-    //     //  2, 125ms
-    //     //  3, 250ms
-    //     //  4, 500ms
-    //     //  5, 1000ms
-    //     //  6, 10ms
-    //     //  7, 20ms
-    //     myBME280.settings.tStandby = 0;
-
-    //     //filter can be off or number of FIR coefficients to use:
-    //     //  0, filter off
-    //     //  1, coefficients = 2
-    //     //  2, coefficients = 4
-    //     //  3, coefficients = 8
-    //     //  4, coefficients = 16
-    //     myBME280.settings.filter = 0;
-
-    //     //tempOverSample can be:
-    //     //  0, skipped
-    //     //  1 through 5, oversampling *1, *2, *4, *8, *16 respectively
-    //     myBME280.settings.tempOverSample = 5;
-
-    //     //pressOverSample can be:
-    //     //  0, skipped
-    //     //  1 through 5, oversampling *1, *2, *4, *8, *16 respectively
-    //     myBME280.settings.pressOverSample = 5;
-
-    //     //humidOverSample can be:
-    //     //  0, skipped
-    //     //  1 through 5, oversampling *1, *2, *4, *8, *16 respectively
-    //     myBME280.settings.humidOverSample = 5;
-
-    //     Serial.begin(57600);
-    //     Serial.print("Program Started\n");
-    //     Serial.print("Starting BME280... result of .begin(): 0x");
-
-    //     //Calling .begin() causes the settings to be loaded
-    //     delay(10);  //Make sure sensor had enough time to turn on. BME280 requires 2ms to start up.
-    //     Serial.println(myBME280.begin(), HEX);
-
-    //     Serial.print("Displaying ID, reset and ctrl regs\n");
-
-    //     Serial.print("ID(0xD0): 0x");
-    //     Serial.println(myBME280.readRegister(BME280_CHIP_ID_REG), HEX);
-    //     Serial.print("Reset register(0xE0): 0x");
-    //     Serial.println(myBME280.readRegister(BME280_RST_REG), HEX);
-    //     Serial.print("ctrl_meas(0xF4): 0x");
-    //     Serial.println(myBME280.readRegister(BME280_CTRL_MEAS_REG), HEX);
-    //     Serial.print("ctrl_hum(0xF2): 0x");
-    //     Serial.println(myBME280.readRegister(BME280_CTRL_HUMIDITY_REG), HEX);
-
-    //     Serial.print("\n\n");
-
-    //     Serial.print("Displaying all regs\n");
-    //     uint8_t memCounter = 0x80;
-    //     uint8_t tempReadData;
-    //     for(int rowi = 8; rowi < 16; rowi++ )
-    //     {
-    //       Serial.print("0x");
-    //       Serial.print(rowi, HEX);
-    //       Serial.print("0:");
-    //       for(int coli = 0; coli < 16; coli++ )
-    //       {
-    //         tempReadData = myBME280.readRegister(memCounter);
-    //         Serial.print((tempReadData >> 4) & 0x0F, HEX);//Print first hex nibble
-    //         Serial.print(tempReadData & 0x0F, HEX);//Print second hex nibble
-    //         Serial.print(" ");
-    //         memCounter++;
-    //       }
-    //       Serial.print("\n");
-    //     }
-
-    //     Serial.print("\n\n");
-
-    //     Serial.print("Displaying concatenated calibration words\n");
-    //     Serial.print("dig_T1, uint16: ");
-    //     Serial.println(myBME280.calibration.dig_T1);
-    //     Serial.print("dig_T2, int16: ");
-    //     Serial.println(myBME280.calibration.dig_T2);
-    //     Serial.print("dig_T3, int16: ");
-    //     Serial.println(myBME280.calibration.dig_T3);
-
-    //     Serial.print("dig_P1, uint16: ");
-    //     Serial.println(myBME280.calibration.dig_P1);
-    //     Serial.print("dig_P2, int16: ");
-    //     Serial.println(myBME280.calibration.dig_P2);
-    //     Serial.print("dig_P3, int16: ");
-    //     Serial.println(myBME280.calibration.dig_P3);
-    //     Serial.print("dig_P4, int16: ");
-    //     Serial.println(myBME280.calibration.dig_P4);
-    //     Serial.print("dig_P5, int16: ");
-    //     Serial.println(myBME280.calibration.dig_P5);
-    //     Serial.print("dig_P6, int16: ");
-    //     Serial.println(myBME280.calibration.dig_P6);
-    //     Serial.print("dig_P7, int16: ");
-    //     Serial.println(myBME280.calibration.dig_P7);
-    //     Serial.print("dig_P8, int16: ");
-    //     Serial.println(myBME280.calibration.dig_P8);
-    //     Serial.print("dig_P9, int16: ");
-    //     Serial.println(myBME280.calibration.dig_P9);
-
-    //     Serial.print("dig_H1, uint8: ");
-    //     Serial.println(myBME280.calibration.dig_H1);
-    //     Serial.print("dig_H2, int16: ");
-    //     Serial.println(myBME280.calibration.dig_H2);
-    //     Serial.print("dig_H3, uint8: ");
-    //     Serial.println(myBME280.calibration.dig_H3);
-    //     Serial.print("dig_H4, int16: ");
-    //     Serial.println(myBME280.calibration.dig_H4);
-    //     Serial.print("dig_H5, int16: ");
-    //     Serial.println(myBME280.calibration.dig_H5);
-    //     Serial.print("dig_H6, uint8: ");
-    //     Serial.println(myBME280.calibration.dig_H6);
-
-    //     Serial.println();
-    //   }
-
-    void printDriverError(CCS811Core::status errorCode)
+    void VEML6075Init()
     {
-        switch (errorCode)
+        // the VEML6075's begin function can take no parameters
+        // It will return true on success or false on failure to communicate
+        if (myVEML6075.begin() == false)
         {
-        case CCS811Core::SENSOR_SUCCESS:
-            Serial.print("SUCCESS");
-            break;
-        case CCS811Core::SENSOR_ID_ERROR:
-            Serial.print("ID_ERROR");
-            break;
-        case CCS811Core::SENSOR_I2C_ERROR:
-            Serial.print("I2C_ERROR");
-            break;
-        case CCS811Core::SENSOR_INTERNAL_ERROR:
-            Serial.print("INTERNAL_ERROR");
-            break;
-        case CCS811Core::SENSOR_GENERIC_ERROR:
-            Serial.print("GENERIC_ERROR");
-            break;
-        default:
-            Serial.print("Unspecified error.");
+            Serial.println("Unable to communicate with VEML6075.");
+            while (1)
+                ;
         }
+        Serial.println("UVA, UVB, UV Index");
     }
 
     void updateOled()
@@ -633,7 +431,6 @@ public:
         oled.setCursor(0, 0);
         oled.setFontType(0);
         oled.print("temp:");
-        // oled.print(myBME280.readTempF());
         oled.print(myBME680.temperature);
 
         oled.setCursor(0, 8);
@@ -662,8 +459,10 @@ public:
 
         oled.setCursor(0, 40);
         oled.setFontType(0);
-        oled.print("soil: ");
-        oled.print(String(soilSensor1.getPercentMoist()));
+        // oled.print("soil: ");
+        // oled.print(String(soilSensor1.getPercentMoist()));
+        oled.print("uvab: ");
+        oled.print(String(myVEML6075.uva()) + ", " + String(myVEML6075.uvb()) + ", " + String(myVEML6075.index()));
 
         oled.display();
     }
@@ -671,36 +470,33 @@ public:
     void printSerial()
     {
         Serial.print("Temperature: ");
-        // Serial.print(myBME280.readTempC(), 2);
+        Serial.print(myBME680.temperature, 2);
         Serial.println(" degrees C");
 
-        Serial.print("Temperature: ");
-        // Serial.print(myBME280.readTempF(), 2);
-        Serial.println(" degrees F");
-
         Serial.print("Pressure: ");
-        // Serial.print(myBME280.readFloatPressure(), 2);
+        Serial.print(myBME680.pressure / 100.0, 2);
         Serial.println(" Pa");
 
         Serial.print("Altitude: ");
-        // Serial.print(myBME280.readFloatAltitudeMeters(), 2);
+        Serial.print(myBME680.readAltitude(SEALEVELPRESSURE_HPA), 2);
         Serial.println("m");
 
-        Serial.print("Altitude: ");
-        // Serial.print(myBME280.readFloatAltitudeFeet(), 2);
-        Serial.println("ft");
-
         Serial.print("%RH: ");
-        // Serial.print(myBME280.readFloatHumidity(), 2);
+        Serial.print(myBME680.humidity, 2);
         Serial.println(" %");
 
-        Serial.print("eCO2: ");
-        // Serial.print(myCCS811.getCO2());
+        Serial.print("Gas resistance: ");
+        Serial.print(myBME680.gas_resistance / 1000.0, 2);
         Serial.println(" ppm");
 
-        Serial.print("TVOC: ");
-        // Serial.print(myCCS811.getTVOC());
-        Serial.println(" ppb");
+        Serial.print("UVA: ");
+        Serial.println(myVEML6075.uva());
+
+        Serial.print("UVB: ");
+        Serial.println(myVEML6075.uvb());
+
+        Serial.print("UV index: ");
+        Serial.println(myVEML6075.index());
 
         Serial.print("SoilMoisture: ");
         Serial.print(soilSensor1.getPercentMoist());
@@ -729,26 +525,16 @@ public:
 
         if (currentPublishMillis - previousPublishMillis >= waitTimePublish)
         {
-            //   ubidots.add("Temp", myBME280.readTempF());  // Change for your variable name
-            //   ubidots.add("Relative_Humidity", myBME280.readFloatHumidity());
-            //   ubidots.add("Pressure", myBME280.readFloatPressure());
-            //   ubidots.add("eCO2", myCCS811.getCO2());
-            //   ubidots.add("TVOC", myCCS811.getTVOC());
-
-            //   if(ubidots.sendAll()){
-            //     // Do something if values were sent properly
-            //     Serial.println("Values published by device");
-            //   }
-
-            // // Particle Variables (not used)
-            //  tempF = myBME280.readTempF();
-            //  rh = myBME280.readFloatHumidity();
-
             //  // Push values to particle
             Particle.publish("temp", String(myBME680.temperature));
             Particle.publish("rh", String(myBME680.humidity));
             Particle.publish("pressure", String(myBME680.pressure / 100.0));
+            Particle.publish("altitude", String(myBME680.readAltitude(SEALEVELPRESSURE_HPA)));
+            Particle.publish("gas resistance", String(myBME680.gas_resistance / 1000.0));
             // Particle.publish("soilMoisture", soilMoisture);
+            Particle.publish("uva", String(myVEML6075.uva()));
+            Particle.publish("uvb", String(myVEML6075.uvb()));
+            Particle.publish("uv index", String(myVEML6075.index()));
 
             String temp = "{\"temp\":";
             temp += String(myBME680.temperature);
@@ -762,13 +548,25 @@ public:
             pressure += String(myBME680.pressure / 100.0);
             pressure += "}";
 
-            String co2 = "{\"gas_resistance\":";
-            co2 += String(myBME680.gas_resistance / 1000.0);
-            co2 += "}";
+            String gas_resistance = "{\"gas_resistance\":";
+            gas_resistance += String(myBME680.gas_resistance / 1000.0);
+            gas_resistance += "}";
 
-            String tvoc = "{\"altitude\":";
-            tvoc += String(myBME680.readAltitude(SEALEVELPRESSURE_HPA));
-            tvoc += "}";
+            String altitude = "{\"altitude\":";
+            altitude += String(myBME680.readAltitude(SEALEVELPRESSURE_HPA));
+            altitude += "}";
+
+            String uva = "{\"uva\":";
+            uva += String(myVEML6075.uva());
+            uva += "}";
+
+            String uvb = "{\"uvb\":";
+            uva += String(myVEML6075.uvb());
+            uva += "}";
+
+            String uv_index = "{\"uv_index\":";
+            uva += String(myVEML6075.index());
+            uva += "}";
 
             if (!client.loop())
             {
@@ -789,40 +587,14 @@ public:
                 client.publish("sensor/tent11", temp);
                 client.publish("sensor/tent11", rh);
                 client.publish("sensor/tent11", pressure);
-                client.publish("sensor/tent11", co2);
-                client.publish("sensor/tent11", tvoc);
+                client.publish("sensor/tent11", gas_resistance);
+                client.publish("sensor/tent11", altitude);
+                client.publish("sensor/tent11", uva);
+                client.publish("sensor/tent11", uvb);
+                client.publish("sensor/tent11", uv_index);
             }
 
             previousPublishMillis = currentPublishMillis;
-        }
-    }
-
-    void updateCSS811()
-    {
-        //Check to see if data is available
-        if (myCCS811.dataAvailable())
-        {
-            //Calling this function updates the global tVOC and eCO2 variables
-            //   myCCS811.readAlgorithmResults();
-
-            //   //printData fetches the values of tVOC and eCO2
-            //   printSerial();
-
-            //   float BMEtempC = myBME280.readTempC();
-            //   float BMEhumid = myBME280.readFloatHumidity();
-
-            //   Serial.print("Applying new values (deg C, %): ");
-            //   Serial.print(BMEtempC);
-            //   Serial.print(",");
-            //   Serial.println(BMEhumid);
-            //   Serial.println();
-
-            //   //This sends the temperature data to the CCS811
-            //   myCCS811.setEnvironmentalData(BMEhumid, BMEtempC);
-        }
-        else if (myCCS811.checkForStatusError())
-        {
-            Serial.println(myCCS811.getErrorRegister()); //Prints whatever CSS811 error flags are detected
         }
     }
 };
